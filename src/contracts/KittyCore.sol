@@ -31,6 +31,39 @@ contract KittyCore is ERC721, Ownable, Pausable {
 
     constructor() ERC721("Ancient8Kitties", "A8K") {}
 
+    // New variables for special breeding events
+    address public governanceContract;
+    mapping(uint256 => bool) public specialTraitKitties;
+    
+    event SpecialTraitAssigned(uint256 indexed kittyId, uint256 indexed eventId);
+    
+    function setGovernanceContract(address _governanceContract) external onlyOwner {
+        governanceContract = _governanceContract;
+    }
+    
+    function breedWithSpecialTrait(uint256 _matronId, uint256 _sireId, uint256 _eventId) 
+        external 
+    {
+        require(governanceContract != address(0), "Governance not set");
+        require(
+            KittyGovernance(governanceContract).breedingEvents(_eventId).specialTraitsEnabled,
+            "Special traits not enabled for this event"
+        );
+        
+        // Perform normal breeding
+        uint256 newKittyId = _createKitty(_matronId, _sireId, 0, generateSpecialGenes(), msg.sender);
+        
+        // Mark kitty as having special traits
+        specialTraitKitties[newKittyId] = true;
+        
+        emit SpecialTraitAssigned(newKittyId, _eventId);
+    }
+    
+    function generateSpecialGenes() internal view returns (uint256) {
+        // Generate special genes with rare traits
+        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender))) | 0xFF000000;
+    }
+
     function createGen0Kitty(uint256 _genes) external onlyOwner {
         require(gen0Counter < CREATION_LIMIT_GEN0, "Gen0 limit reached");
         

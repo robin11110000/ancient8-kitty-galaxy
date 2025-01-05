@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NFTCard } from "./NFTCard";
 import { Button } from "./ui/button";
 import { toast } from "./ui/use-toast";
 import { generateRandomGenes, breedKitties } from "@/utils/genetics";
+import { checkAchievements } from "@/utils/gameplayUtils";
 import type { KittyDisplay } from "@/types/kitty";
 
 // Sample data - in a real app this would come from your blockchain connection
@@ -29,6 +30,16 @@ const INITIAL_KITTIES = Array.from({ length: 8 }, (_, i) =>
 export const NFTGrid = () => {
   const [kitties, setKitties] = useState<KittyDisplay[]>(INITIAL_KITTIES);
   const [selectedForBreeding, setSelectedForBreeding] = useState<string[]>([]);
+  const [isSpecialEvent, setIsSpecialEvent] = useState(false);
+  
+  useEffect(() => {
+    // In a real implementation, this would check for active special events
+    const checkForSpecialEvents = async () => {
+      setIsSpecialEvent(false); // Placeholder
+    };
+    
+    checkForSpecialEvents();
+  }, []);
 
   const handleBreedSelection = (kittyId: string) => {
     if (selectedForBreeding.includes(kittyId)) {
@@ -44,7 +55,7 @@ export const NFTGrid = () => {
     }
   };
 
-  const handleBreed = () => {
+  const handleBreed = async () => {
     if (selectedForBreeding.length !== 2) return;
 
     const matron = kitties.find(k => k.id === selectedForBreeding[0]);
@@ -52,26 +63,49 @@ export const NFTGrid = () => {
 
     if (!matron || !sire) return;
 
-    const newGenes = breedKitties(matron.genes, sire.genes);
-    const newKitty: KittyDisplay = {
-      ...generateSampleKitty((kitties.length + 1).toString()),
-      genes: newGenes,
-      generation: Math.max(matron.generation, sire.generation) + 1,
-      matronId: matron.id,
-      sireId: sire.id,
-    };
+    try {
+      const newGenes = isSpecialEvent 
+        ? breedKitties(matron.genes, sire.genes) + "F" // Add special trait
+        : breedKitties(matron.genes, sire.genes);
+        
+      const newKitty: KittyDisplay = {
+        ...generateSampleKitty((kitties.length + 1).toString()),
+        genes: newGenes,
+        generation: Math.max(matron.generation, sire.generation) + 1,
+        matronId: matron.id,
+        sireId: sire.id,
+      };
 
-    setKitties(prev => [...prev, newKitty]);
-    setSelectedForBreeding([]);
-    
-    toast({
-      title: "New Kitty Born!",
-      description: `Successfully bred a new Gen ${newKitty.generation} kitty!`
-    });
+      setKitties(prev => [...prev, newKitty]);
+      setSelectedForBreeding([]);
+      
+      // Check for achievements
+      await checkAchievements("sample-address", newGenes, newKitty.breedCount);
+      
+      toast({
+        title: "New Kitty Born!",
+        description: `Successfully bred a new Gen ${newKitty.generation} kitty!${
+          isSpecialEvent ? " With special traits!" : ""
+        }`
+      });
+    } catch (error) {
+      console.error("Error breeding kitties:", error);
+      toast({
+        title: "Breeding Failed",
+        description: "There was an error while breeding the kitties",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
     <div className="space-y-6">
+      {isSpecialEvent && (
+        <div className="p-4 bg-purple-100 rounded-lg text-purple-800 text-center animate-pulse">
+          🎉 Special Breeding Event Active! Breed now for a chance at rare traits! 🎉
+        </div>
+      )}
+      
       {selectedForBreeding.length > 0 && (
         <div className="flex items-center justify-center gap-4 p-4 bg-purple-50 rounded-lg">
           <span className="text-purple-600">
@@ -82,7 +116,7 @@ export const NFTGrid = () => {
               onClick={handleBreed}
               className="bg-pink-600 hover:bg-pink-700"
             >
-              Breed Selected Kitties
+              {isSpecialEvent ? "Special Breed" : "Breed"} Selected Kitties
             </Button>
           )}
         </div>
